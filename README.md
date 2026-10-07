@@ -650,3 +650,9 @@ Automated Security Operations
 ```
 
 The goal is to demonstrate how modern security teams can use automation and AI to reduce repetitive alert-analysis tasks, improve response speed, and assist security analysts in investigating potential threats.
+
+---
+
+# 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
