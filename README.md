@@ -1,55 +1,652 @@
-# 🛡️ Wazuh + n8n + AI Security Automation (SOAR)
+# Wazuh + n8n + AI Security Automation
 
-## 📖 Overview
-This project implements a basic automated security response system (SOAR) by integrating **Wazuh** (SIEM), **n8n** (Workflow Automation), and **Google Gemini AI**. The system monitors security events, analyzes them using artificial intelligence, and automates incident response actions such as sending notifications, logging incidents, and blocking malicious IP addresses.
+> **SOAR + AI Security Automation Pipeline for Automated Security Alert Analysis and Response**
 
-## ✨ Features
-- **🔍 SIEM Monitoring**: Wazuh monitors system logs and detects suspicious activities (e.g., SSH brute-force attacks).
-- **⚙️ Automated Workflow**: n8n orchestrates the incident response process based on webhooks triggered by Wazuh.
-- **🧠 AI-Powered Analysis**: Google Gemini AI analyzes Wazuh alerts to determine the attack type, severity, and recommended actions, generating human-readable summaries.
-- **⚖️ Dynamic Decision Logic**:
-  - **🔴 High Severity**: Automatically blocks the attacker's IP using Wazuh's Active Response, logs the incident, and sends a critical email alert.
-  - **🟡 Medium Severity**: Logs the incident and sends a warning email to the security administrator without blocking the IP.
-  - **🟢 Low Severity**: Silently logs the incident for record-keeping purposes.
+A cybersecurity automation project that integrates **Wazuh**, **n8n**, and **AI** to automatically receive, analyze, classify, and respond to security alerts.
 
-## 🏗️ Architecture & Workflow
-1. **🚨 Attack Simulation & Detection**: Wazuh detects a threat (e.g., repeated failed SSH logins) and generates an alert.
-2. **🔌 Custom Integration**: A custom Python script (`custom-n8n`) forwards the JSON alert from Wazuh Manager to an n8n Webhook.
-3. **🧹 Data Preparation**: n8n cleans and formats the raw JSON alert, extracting essential fields (Source IP, Rule ID, Description, Level, Agent Name).
-4. **🤖 AI Analysis**: The cleaned data is sent to the Gemini API, which returns a structured response containing the attack type, severity, explanation, and recommended action.
-5. **⚡ Response Execution**: Based on the AI's severity classification, n8n follows predefined paths (High, Medium, or Low) to log the incident and optionally trigger firewall blocks or email notifications.
+The project demonstrates how a Security Operations Center (SOC) can automate repetitive alert-analysis tasks by connecting a SIEM/XDR platform with a workflow automation platform and an AI security analyst.
 
-## 📋 Requirements
-- 🛡️ Wazuh Manager (e.g., v4.14.7)
-- 🔄 n8n (running in Docker or standalone)
-- 🔑 Google Gemini API Key
-- 📧 Email Account (for SMTP notifications)
+---
 
-## 🚀 Setup Instructions
+## 📌 Project Overview
 
-### 1️⃣ n8n Setup
-Run n8n using Docker with a persistent volume:
-```bash
-docker volume create n8n_data
-docker run -it --rm --name n8n -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8n/n8n
+Traditional SOC environments often require analysts to manually investigate alerts, determine their severity, identify the potential attack technique, and decide what action should be taken.
+
+This project automates a significant portion of that process.
+
+When Wazuh generates a security alert, the alert is automatically forwarded to an **n8n webhook**. n8n processes the alert and sends the relevant security information to an **AI analysis component**. The AI analyzes the event, produces a human-readable security assessment, determines the potential severity, maps relevant MITRE ATT&CK techniques where applicable, and recommends an appropriate response.
+
+### Core workflow
+
+```text
+┌──────────────────────┐
+│   Kali / Endpoint    │
+│   Security Activity  │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│     Wazuh Agent      │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    Wazuh Manager     │
+│   Alert Generation   │
+└──────────┬───────────┘
+           │
+           │ Alert JSON
+           ▼
+┌──────────────────────┐
+│  Custom n8n          │
+│  Integration Script  │
+└──────────┬───────────┘
+           │
+           │ HTTP POST
+           ▼
+┌──────────────────────┐
+│     n8n Webhook      │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│   AI Security        │
+│      Analysis        │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│  Decision / Risk     │
+│     Assessment       │
+└──────────┬───────────┘
+           │
+      ┌────┼────┐
+      ▼    ▼    ▼
+    HIGH MEDIUM LOW
+      │    │    │
+      └────┼────┘
+           ▼
+┌──────────────────────┐
+│ Recommended Response │
+│ / SOC Notification   │
+└──────────────────────┘
 ```
-Access the n8n web interface at `http://localhost:5678`.
 
-### 2️⃣ Wazuh Custom Integration
-1. On the Wazuh Manager, create a custom integration script at `/var/ossec/integrations/custom-n8n`.
-2. This script should read the Wazuh alert file and send it as an HTTP POST request to your n8n webhook URL.
-3. Configure the integration in the `ossec.conf` file to forward alerts to the script.
-4. Restart the Wazuh Manager service.
+---
 
-### 3️⃣ n8n Workflow Configuration
-1. Create a workflow in n8n starting with a **Webhook** node (`POST` method, listening on a specific path like `wazuh-alert`).
-2. Add a **Code Node** ("Prepare Wazuh Alert") to clean the raw JSON alert and extract essential fields using safe operators.
-3. Add an **HTTP Request Node** ("Gemini AI Analysis") to send the cleaned data to the Gemini API for analysis.
-4. Add another **Code Node** ("Parse AI Decision") to safely parse the AI's JSON response and extract fields like severity, attack type, and recommended action.
-5. Use **If Nodes** to route the workflow based on the AI's determined severity:
-   - **🔴 High Severity**: Send a PUT request to the Wazuh Manager API (`/active-response`) to block the source IP, log the incident, and send a critical email alert.
-   - **🟡 Medium Severity**: Log the incident and send a warning email.
-   - **🟢 Low Severity**: Log the incident only.
+# 🎯 Objectives
 
-## 🎯 Conclusion
-This integration transforms standard SIEM alerts into a smart, automated Security Operations Center (SOC) pipeline. By leveraging AI to translate technical alerts into plain English and applying automated decision-making, it significantly reduces manual triage effort and accelerates incident response times.
+The main objectives of this project are to:
+
+* Integrate Wazuh with n8n.
+* Automatically forward Wazuh security alerts to n8n.
+* Process security events through an automated workflow.
+* Use AI to analyze security alerts.
+* Generate human-readable security summaries.
+* Identify potential attack techniques.
+* Map relevant events to MITRE ATT&CK techniques.
+* Classify security events according to risk/severity.
+* Provide recommended response actions.
+* Reduce repetitive manual SOC investigation tasks.
+* Demonstrate a practical SOAR + AI security automation architecture.
+
+---
+
+# 🛡️ Key Features
+
+### 1. Wazuh Alert Monitoring
+
+Wazuh monitors endpoints and generates security alerts based on configured detection rules.
+
+Examples include:
+
+* Authentication failures
+* SSH login attempts
+* Privilege escalation events
+* Suspicious system activity
+* File integrity changes
+* Other security events detected by Wazuh
+
+---
+
+### 2. Automated Alert Forwarding
+
+A custom Wazuh integration forwards selected alerts to an n8n webhook.
+
+The integration performs the following process:
+
+```text
+Wazuh Alert
+     ↓
+Read Alert JSON
+     ↓
+Process Alert
+     ↓
+HTTP POST
+     ↓
+n8n Webhook
+```
+
+This removes the need for a SOC analyst to manually copy alert information from Wazuh into another system.
+
+---
+
+### 3. n8n Security Automation
+
+n8n acts as the workflow orchestration layer.
+
+The workflow can:
+
+* Receive Wazuh alerts.
+* Extract important fields.
+* Process security information.
+* Send information to an AI analysis component.
+* Evaluate the AI result.
+* Determine the appropriate workflow path.
+* Generate a response or notification.
+
+---
+
+### 4. AI-Based Security Analysis
+
+The AI component acts as an automated security analyst.
+
+It can analyze information such as:
+
+* Wazuh rule ID
+* Alert description
+* Severity level
+* Source IP
+* Destination information
+* Authentication information
+* Event location
+* MITRE ATT&CK information
+* Event frequency
+* Other available alert metadata
+
+The AI produces a structured security assessment.
+
+Example:
+
+```text
+Attack Type:
+SSH Authentication Attack
+
+Severity:
+Medium
+
+Confidence:
+High
+
+MITRE ATT&CK:
+T1110.001 - Password Guessing
+
+Assessment:
+The event indicates a failed SSH authentication attempt
+using a non-existent username. Repeated occurrences from
+the same source could indicate automated account discovery
+or password-guessing activity.
+
+Recommended Action:
+Monitor the source IP and investigate repeated authentication
+failures. Consider blocking the source if malicious activity
+is confirmed.
+```
+
+---
+
+# 🧠 AI Security Analysis Pipeline
+
+The AI processing stage follows a structured approach:
+
+```text
+Wazuh Alert
+     │
+     ▼
+Extract Security Information
+     │
+     ▼
+Analyze Event
+     │
+     ├── Identify Attack Type
+     │
+     ├── Determine Severity
+     │
+     ├── Estimate Confidence
+     │
+     ├── Identify MITRE ATT&CK Technique
+     │
+     ├── Assess False-Positive Possibility
+     │
+     └── Recommend Response
+     │
+     ▼
+Structured Security Assessment
+```
+
+---
+
+# 🔍 Example Security Event
+
+One of the test events used in the project is a Wazuh SSH authentication alert.
+
+Example:
+
+```json
+{
+  "rule": {
+    "id": 5710,
+    "description": "sshd: Attempt to login using a non-existent user",
+    "level": 5
+  },
+  "agent": {
+    "name": "lab-target"
+  },
+  "srcip": "192.168.100.X",
+  "location": "sshd"
+}
+```
+
+The alert is forwarded to n8n and processed by the automation workflow.
+
+---
+
+# ⚙️ Technology Stack
+
+| Technology       | Purpose                                    |
+| ---------------- | ------------------------------------------ |
+| **Wazuh**        | Security monitoring and alert generation   |
+| **n8n**          | Workflow automation and orchestration      |
+| **AI**           | Security alert analysis and recommendation |
+| **Python**       | Wazuh-to-n8n integration                   |
+| **Docker**       | n8n container deployment                   |
+| **REST API**     | Communication between components           |
+| **Webhooks**     | Real-time alert delivery                   |
+| **MITRE ATT&CK** | Attack technique identification            |
+| **Linux**        | Server and security environment            |
+
+---
+
+# 🏗️ Project Architecture
+
+```text
+                     SECURITY EVENT
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │   Wazuh Agent   │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │  Wazuh Manager  │
+                  └────────┬────────┘
+                           │
+                     Alert JSON
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ custom-n8n      │
+                  │ Integration     │
+                  └────────┬────────┘
+                           │
+                       HTTP POST
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │   n8n Webhook   │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │  Alert Parsing  │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ AI Security     │
+                  │ Analysis        │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Risk / Decision  │
+                  │     Engine       │
+                  └────────┬────────┘
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+          HIGH RISK     MEDIUM RISK    LOW RISK
+             │             │             │
+             └─────────────┼─────────────┘
+                           ▼
+                  Recommended Action
+```
+
+---
+
+# 📂 Repository Structure
+
+```text
+Wazuh-n8n-AI-Security-Automation/
+│
+├── README.md
+├── LICENSE
+├── .gitignore
+│
+├── wazuh/
+│   ├── custom-n8n
+│   ├── ossec.conf.example
+│   └── install.sh
+│
+├── n8n/
+│   ├── Wazuh-AI-Security-Automation.json
+│   └── workflow-setup.md
+│
+├── docker/
+│   └── docker-compose.yml
+│
+├── docs/
+│   ├── architecture.md
+│   ├── installation.md
+│   ├── testing.md
+│   └── screenshots/
+│       ├── wazuh-alert.png
+│       ├── n8n-workflow.png
+│       ├── n8n-execution.png
+│       └── wazuh-dashboard.png
+│
+└── examples/
+    └── sample-wazuh-alert.json
+```
+
+---
+
+# 🚀 Installation and Setup
+
+## Prerequisites
+
+Before deploying the project, make sure you have:
+
+* A Wazuh Manager
+* A Wazuh Agent or monitored endpoint
+* Linux environment
+* Docker
+* n8n
+* AI provider/API configured in n8n
+* Network connectivity between Wazuh and n8n
+
+---
+
+## 1. Deploy n8n
+
+The project uses Docker for n8n deployment.
+
+Example:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+After deployment, n8n can be accessed through:
+
+```text
+http://<N8N_IP>:5678
+```
+
+---
+
+## 2. Import the n8n Workflow
+
+Open n8n and import:
+
+```text
+n8n/Wazuh-AI-Security-Automation.json
+```
+
+After importing:
+
+1. Configure the required AI credentials.
+2. Review the webhook configuration.
+3. Verify the AI processing node.
+4. Verify the decision/response nodes.
+5. Activate the workflow.
+
+> **Important:** Credentials and API keys are not included in this repository.
+
+---
+
+## 3. Configure Wazuh
+
+Use the example configuration:
+
+```text
+wazuh/ossec.conf.example
+```
+
+Configure the Wazuh integration with the n8n webhook:
+
+```text
+http://<N8N_IP>:5678/webhook/wazuh-alert
+```
+
+Replace `<N8N_IP>` with the IP address of your n8n server.
+
+---
+
+## 4. Install the Wazuh Integration
+
+Copy the integration script into:
+
+```text
+/var/ossec/integrations/custom-n8n
+```
+
+Set the required permissions:
+
+```bash
+sudo chmod 750 /var/ossec/integrations/custom-n8n
+sudo chown root:wazuh /var/ossec/integrations/custom-n8n
+```
+
+Restart Wazuh:
+
+```bash
+sudo systemctl restart wazuh-manager
+```
+
+---
+
+# 🧪 Testing
+
+After configuration, generate a security event from the monitored endpoint.
+
+The expected flow is:
+
+```text
+Security Event
+      ↓
+Wazuh Agent
+      ↓
+Wazuh Manager
+      ↓
+Wazuh Rule
+      ↓
+custom-n8n
+      ↓
+n8n Webhook
+      ↓
+AI Analysis
+      ↓
+Decision
+      ↓
+Response
+```
+
+Verify the following:
+
+### Wazuh
+
+Confirm that the security alert is generated.
+
+### n8n
+
+Confirm that the webhook receives the alert.
+
+### AI
+
+Confirm that the AI analyzes the event.
+
+### Execution
+
+Confirm that the complete n8n workflow executes successfully.
+
+---
+
+# 📊 Expected Result
+
+A successful execution should produce an automated security assessment similar to:
+
+```text
+Security Event Detected
+        │
+        ▼
+Alert Received
+        │
+        ▼
+AI Analysis
+        │
+        ▼
+Attack Classification
+        │
+        ▼
+Risk Assessment
+        │
+        ▼
+MITRE ATT&CK Mapping
+        │
+        ▼
+Recommended Response
+```
+
+This demonstrates an automated SOC workflow in which a Wazuh alert can be processed without requiring an analyst to manually perform every initial investigation step.
+
+---
+
+# 🔐 Security Considerations
+
+This project is intended for **authorized cybersecurity labs, educational environments, and defensive security operations**.
+
+Do not commit sensitive information to the repository.
+
+The following must never be uploaded:
+
+```text
+.env files
+API keys
+Passwords
+Private keys
+Authentication tokens
+n8n credentials
+Wazuh private configuration
+Production secrets
+```
+
+Use placeholders such as:
+
+```text
+<N8N_IP>
+<API_KEY>
+<WEBHOOK_URL>
+```
+
+instead.
+
+The `.gitignore` file is included to help prevent accidental commits of sensitive files.
+
+---
+
+# ⚠️ Disclaimer
+
+This project is designed for educational, research, and authorized defensive security purposes.
+
+Only deploy the automation against systems and networks that you own or have explicit permission to monitor.
+
+The AI-generated security assessment should be treated as an analyst-assistance mechanism rather than an unquestionable security decision. Alerts should be validated using additional evidence before performing high-impact response actions.
+
+---
+
+# 📸 Project Screenshots
+
+Screenshots demonstrating the project implementation will be available in:
+
+```text
+docs/screenshots/
+```
+
+Recommended screenshots include:
+
+* Wazuh security alert
+* n8n workflow
+* n8n webhook
+* Successful n8n execution
+* AI analysis result
+* Wazuh dashboard
+
+---
+
+# 🔮 Future Improvements
+
+Possible future improvements include:
+
+* Automated IP blocking
+* Firewall integration
+* Email/Telegram/Slack notifications
+* Automated incident ticket creation
+* Threat intelligence enrichment
+* VirusTotal IOC lookup
+* AlienVault OTX enrichment
+* Automated IOC extraction
+* Automated MITRE ATT&CK enrichment
+* Case management integration
+* SOC dashboard
+* Alert correlation
+* Automated incident response
+* Human approval before high-impact actions
+
+---
+
+# 👨💻 Author
+
+**Muhammad Faizan Ali**
+
+Cyber Security Student | Ethical Hacking Enthusiast | Network Security Learner
+
+### Areas of Interest
+
+* Cyber Security
+* Security Operations Center (SOC)
+* Ethical Hacking
+* Network Security
+* Threat Intelligence
+* Security Automation
+* Digital Forensics
+* Incident Response
+
+---
+
+# ⭐ Project Purpose
+
+This project demonstrates the practical integration of:
+
+```text
+SIEM/XDR
+   +
+SOAR
+   +
+Artificial Intelligence
+   =
+Automated Security Operations
+```
+
+The goal is to demonstrate how modern security teams can use automation and AI to reduce repetitive alert-analysis tasks, improve response speed, and assist security analysts in investigating potential threats.
