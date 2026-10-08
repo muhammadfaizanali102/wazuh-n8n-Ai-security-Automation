@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-09-18T12:00:00.000+0000",
+  "rule": {
+    "level": 5,
+    "description": "sshd: Attempt to login using a non-existent user",
+    "id": "5710",
+    "firedtimes": 1,
+    "mail": false,
+    "groups": [
+      "authentication_failed",
+      "invalid_login",
+      "syslog",
+      "sshd"
+    ],
+    "mitre": {
+      "id": [
+        "T1110.001",
+        "T1021.004"
+      ],
+      "tactic": [
+        "Credential Access",
+        "Lateral Movement"
+      ],
+      "technique": [
+        "Password Guessing",
+        "SSH"
+      ]
+    }
+  },
+  "agent": {
+    "id": "001",
+    "name": "lab-target",
+    "ip": "<AGENT_IP>"
+  },
+  "manager": {
+    "name": "wazuh-manager"
+  },
+  "data": {
+    "srcip": "<SOURCE_IP>",
+    "srcuser": "nonexistent-user",
+    "dstuser": "invalid-user"
+  },
+  "location": "sshd"
+}
