@@ -14,8 +14,7 @@
       "position": [
         -1216,
         272
-      ],
-      "webhookId": "wazuh-alert"
+      ]
     },
     {
       "parameters": {
@@ -33,7 +32,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=use your own Api key",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -137,7 +136,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "https://use your own ip:55000/active-response",
+        "url": "https://YOUR_WAZUH_MANAGER_IP:55000/active-response",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -182,14 +181,7 @@
       "position": [
         208,
         96
-      ],
-      "webhookId": "c98e7435-701c-4eda-8880-34bae885c230",
-      "credentials": {
-        "smtp": {
-          "id": "htT1xBr6ukR8uX0F",
-          "name": "SMTP account 2"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -219,14 +211,7 @@
       "position": [
         416,
         528
-      ],
-      "webhookId": "418caaf8-f3a0-41f3-9317-63edeb3817b7",
-      "credentials": {
-        "smtp": {
-          "id": "I8SoCtM9MIiZhHjF",
-          "name": "SMTP account 3"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -353,16 +338,12 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "a9afd9a3-9c17-45b4-a742-8e7f9368c736",
-  "meta": {
-    "instanceId": "027dec4d7571af219134a0d1988e6a6736c68259524296c7bf35c245e5b8602b"
-  },
   "nodeGroups": [],
-  "id": "apf69vcwtY6NW0B0",
-  "tags": []
+  "tags": [],
+  "_github_sanitization_note": "Public GitHub template. Configure Gemini API access, Wazuh API access, SMTP/email credentials, and other integrations in n8n after import. No live credentials or instance-specific metadata should be stored in this file."
 }
