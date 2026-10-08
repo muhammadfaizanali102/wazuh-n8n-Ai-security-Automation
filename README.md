@@ -620,19 +620,6 @@ Possible future improvements include:
 
 **Muhammad Faizan Ali**
 
-Cyber Security Student | Ethical Hacking Enthusiast | Network Security Learner
-
-### Areas of Interest
-
-* Cyber Security
-* Security Operations Center (SOC)
-* Ethical Hacking
-* Network Security
-* Threat Intelligence
-* Security Automation
-* Digital Forensics
-* Incident Response
-
 ---
 
 # ⭐ Project Purpose
