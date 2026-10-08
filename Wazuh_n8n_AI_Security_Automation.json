@@ -1,0 +1,368 @@
+{
+  "name": "Wazuh + n8n + Gemini AI SOAR - Complete",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alert",
+        "options": {}
+      },
+      "id": "be1d2a0f-d626-4600-a87f-947ff78b60f5",
+      "name": "Wazuh Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        272
+      ],
+      "webhookId": "wazuh-alert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$json.body??$json; const alert=input.alert??input; const sourceIp=alert.data?.srcip??alert.data?.src_ip??alert.srcip??alert.source_ip??''; return [{json:{received_at:new Date().toISOString(),source_ip:sourceIp,rule_id:String(alert.rule?.id??alert.rule_id??''),rule_description:alert.rule?.description??alert.description??'Unknown Wazuh rule',wazuh_level:Number(alert.rule?.level??alert.level??0),agent_name:alert.agent?.name??alert.agent_name??'Unknown agent',agent_id:String(alert.agent?.id??alert.agent_id??'YOUR_AGENT_ID'),alert,raw_alert:JSON.stringify(alert)}}];"
+      },
+      "id": "c04b1599-7bfe-40f6-b8bf-9670382482f4",
+      "name": "Prepare Wazuh Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=use your own Api key",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {contents:[{parts:[{text:'You are a SOC L1 analyst. Analyze this Wazuh alert and return ONLY valid JSON with fields attack_type, severity, explanation, recommended_action, source_ip, confidence, summary. Severity must be exactly Low, Medium, or High. Do not invent facts. Alert: '+$json.raw_alert}]}]} }}",
+        "options": {}
+      },
+      "id": "1d3ee6c0-8c0d-419c-a058-731d775b128b",
+      "name": "Gemini AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -768,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const original=$('Prepare Wazuh Alert').first().json; const response=$json; let text=response.candidates?.[0]?.content?.parts?.[0]?.text??''; text=text.replace(/^```json\\s*/i,'').replace(/\\s*```$/i,'').trim(); let ai; try{ai=JSON.parse(text);}catch(e){ai={attack_type:'Unknown',severity:'Medium',explanation:'AI response could not be parsed safely.',recommended_action:'Review the Wazuh alert manually.',source_ip:original.source_ip,confidence:0,summary:'Manual review required.'};} const allowed=['Low','Medium','High']; const severity=allowed.includes(ai.severity)?ai.severity:'Medium'; return [{json:{...original,attack_type:ai.attack_type??'Unknown',severity,explanation:ai.explanation??'',recommended_action:ai.recommended_action??'Review manually',confidence:ai.confidence??0,ai_summary:ai.summary??'',ai_raw_response:text}}];"
+      },
+      "id": "10727fbc-3e9b-4327-9994-6ecee7a53732",
+      "name": "Parse AI Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.severity}}",
+              "rightValue": "High",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fd79208d-5593-4527-a4a3-6d59b64e472f",
+      "name": "High Severity?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -288,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.severity}}",
+              "rightValue": "Medium",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8aca2994-b4e5-460b-b868-dd086a827390",
+      "name": "Medium Severity?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -16,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://use your own ip:55000/active-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_WAZUH_JWT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"command\": \"firewall-drop\",\n  \"agents_list\": [$json.agent_id],\n  \"alert\": {\n    \"data\": {\n      \"srcip\": $json.source_ip\n    }\n  }\n} }}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "bc563d79-fcdd-4fa2-82f6-10fe417a9f89",
+      "name": "Wazuh Firewall Block IP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "use your email",
+        "toEmail": "use your email",
+        "subject": "={{'Wazuh HIGH Alert - '+$json.attack_type+' - '+$json.source_ip}}",
+        "html": "=🚨 WAZUH SECURITY ALERT\n\nSeverity: {{ $json.severity || 'Unknown' }}\n\nAttack Type: {{ $json.attack_type || 'Unknown' }}\n\nSource IP: {{ $json.source_ip || $json.alert?.data?.srcip || 'Unknown' }}\n\nAgent Name: {{ $json.agent_name || $json.alert?.agent?.name || 'Unknown' }}\n\nAgent ID: {{ $json.agent_id || $json.alert?.agent?.id || 'Unknown' }}\n\nRule ID: {{ $json.rule_id || $json.alert?.rule?.id || 'Unknown' }}\n\nRule Level: {{ $json.rule_level || $json.alert?.rule?.level || 'Unknown' }}\n\nRule Description:\n{{ $json.description || $json.alert?.rule?.description || 'No description available' }}\n\nAI Explanation:\n{{ $json.explanation || 'No explanation available' }}\n\nRecommended Response:\n{{ $json.recommended_action || 'No recommendation available' }}\n\nAI Summary:\n{{ $json.summary || 'No summary available' }}\n\nTime:\n{{ $now }}",
+        "options": {}
+      },
+      "id": "e1cc90d8-6215-48d4-a671-ed8cd76f8ffa",
+      "name": "Email High Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        96
+      ],
+      "webhookId": "c98e7435-701c-4eda-8880-34bae885c230",
+      "credentials": {
+        "smtp": {
+          "id": "htT1xBr6ukR8uX0F",
+          "name": "SMTP account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{incident_id:'INC-'+Date.now(),timestamp:new Date().toISOString(),status:'OPEN',severity:$json.severity,attack_type:$json.attack_type,source_ip:$json.source_ip,rule_id:$json.rule_id,rule_description:$json.rule_description,agent_name:$json.agent_name,agent_id:$json.agent_id,ai_summary:$json.ai_summary,ai_explanation:$json.explanation,recommended_action:$json.recommended_action,confidence:$json.confidence,response:'High: firewall block + Telegram + Email + incident record',note:'Connect this node to a database, Google Sheets, ticketing system, or SIEM index for persistent storage.'}}];"
+      },
+      "id": "1a4ae4d3-7d95-4167-914c-b95619691938",
+      "name": "Log High Incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "use your email",
+        "toEmail": "use your email",
+        "subject": "={{'Wazuh MEDIUM Alert - '+$json.attack_type+' - '+$json.source_ip}}",
+        "html": "=⚠️ WAZUH MEDIUM SECURITY ALERT\n\nSeverity:\n{{ $json.severity || 'Medium' }}\n\nAttack Type:\n{{ $json.attack_type || 'Unknown' }}\n\nSource IP:\n{{ $json.source_ip || $json.alert?.data?.srcip || 'Unknown' }}\n\nAgent Name:\n{{ $json.agent_name || $json.alert?.agent?.name || 'Unknown' }}\n\nAgent ID:\n{{ $json.agent_id || $json.alert?.agent?.id || 'Unknown' }}\n\nWazuh Rule ID:\n{{ $json.rule_id || $json.alert?.rule?.id || 'Unknown' }}\n\nRule Level:\n{{ $json.rule_level || $json.alert?.rule?.level || 'Unknown' }}\n\nRule Description:\n{{ $json.description || $json.alert?.rule?.description || 'No description available' }}\n\nAI Explanation:\n{{ $json.explanation || 'No explanation available' }}\n\nRecommended Response:\n{{ $json.recommended_action || 'No recommendation available' }}\n\nAI Summary:\n{{ $json.summary || 'No summary available' }}\n\nTime:\n{{ $now }}",
+        "options": {}
+      },
+      "id": "829ce6ae-f92f-426a-8052-a1817aed3ffc",
+      "name": "Email Medium Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        416,
+        528
+      ],
+      "webhookId": "418caaf8-f3a0-41f3-9317-63edeb3817b7",
+      "credentials": {
+        "smtp": {
+          "id": "I8SoCtM9MIiZhHjF",
+          "name": "SMTP account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{incident_id:'INC-'+Date.now(),timestamp:new Date().toISOString(),status:'OPEN',severity:$json.severity,attack_type:$json.attack_type,source_ip:$json.source_ip,rule_id:$json.rule_id,rule_description:$json.rule_description,agent_name:$json.agent_name,agent_id:$json.agent_id,ai_summary:$json.ai_summary,recommended_action:$json.recommended_action,confidence:$json.confidence,response:'Medium: Telegram + Email + incident record'}}];"
+      },
+      "id": "9a332e33-13a5-4b67-8fab-ed656c8422b7",
+      "name": "Log Medium Incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{incident_id:'INC-'+Date.now(),timestamp:new Date().toISOString(),status:'LOGGED',severity:'Low',attack_type:$json.attack_type,source_ip:$json.source_ip,rule_id:$json.rule_id,rule_description:$json.rule_description,agent_name:$json.agent_name,agent_id:$json.agent_id,ai_summary:$json.ai_summary,recommended_action:$json.recommended_action,confidence:$json.confidence,response:'Low: log only'}}];"
+      },
+      "id": "b5ca4f5d-ff1c-4017-a826-72bcc1961654",
+      "name": "Log Low Incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        672
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Wazuh Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Wazuh Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Wazuh Alert": {
+      "main": [
+        [
+          {
+            "node": "Gemini AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Decision": {
+      "main": [
+        [
+          {
+            "node": "High Severity?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Severity?": {
+      "main": [
+        [
+          {
+            "node": "Wazuh Firewall Block IP",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email High Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log High Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Medium Severity?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Medium Severity?": {
+      "main": [
+        [
+          {
+            "node": "Email Medium Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Medium Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Low Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a9afd9a3-9c17-45b4-a742-8e7f9368c736",
+  "meta": {
+    "instanceId": "027dec4d7571af219134a0d1988e6a6736c68259524296c7bf35c245e5b8602b"
+  },
+  "nodeGroups": [],
+  "id": "apf69vcwtY6NW0B0",
+  "tags": []
+}
